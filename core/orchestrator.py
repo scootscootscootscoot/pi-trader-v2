@@ -41,7 +41,7 @@ class TradingOrchestrator:
     """
 
     def __init__(self):
-        self.scheduler = BackgroundScheduler()
+        self.scheduler = BackgroundScheduler(timezone=pytz.timezone('US/Eastern'))
         self.running = False
         logger.info("Trading orchestrator initialized")
 
@@ -54,19 +54,32 @@ class TradingOrchestrator:
             return
 
         try:
-            # Add scheduled jobs
-            # Example: Schedule a check every minute during market hours
+            # Add scheduled jobs for market hours (9:30 AM - 4:00 PM ET, weekdays, every 5 minutes)
+            # Morning session: 9:30 to 9:55
             self.scheduler.add_job(
                 func=self._execute_trading_cycle,
-                trigger="interval",
-                minutes=1,
-                id="trading_cycle",
-                name="Trading Cycle Execution"
+                trigger="cron",
+                day_of_week='mon-fri',
+                hour=9,
+                minute='30,35,40,45,50,55',
+                id="trading_cycle_morning",
+                name="Trading Cycle Execution - Morning"
+            )
+
+            # Afternoon session: 10:00 to 15:55 (every 5 minutes)
+            self.scheduler.add_job(
+                func=self._execute_trading_cycle,
+                trigger="cron",
+                day_of_week='mon-fri',
+                hour='10-15',
+                minute='*/5',
+                id="trading_cycle_afternoon",
+                name="Trading Cycle Execution - Afternoon"
             )
 
             self.scheduler.start()
             self.running = True
-            logger.info("Trading orchestrator started successfully")
+            logger.info("Trading orchestrator started successfully: scheduling during market hours only (every 5 minutes)")
 
         except Exception as e:
             logger.error(f"Failed to start orchestrator: {e}")
@@ -89,13 +102,9 @@ class TradingOrchestrator:
     def _execute_trading_cycle(self):
         """
         Execute one cycle of trading activities.
-        This is called periodically during market hours.
+        This is called only during market hours via cron scheduling.
         """
         try:
-            if not is_market_open():
-                logger.debug("Market is closed, skipping trading cycle")
-                return
-
             # Placeholder for trading logic
             # TODO: Integrate with strategy evaluators, trading client, etc.
             logger.info("Executing trading cycle")

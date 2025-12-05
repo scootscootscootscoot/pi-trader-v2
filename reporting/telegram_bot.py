@@ -5,7 +5,7 @@ from typing import List, Dict, Any
 from telegram import Bot
 from telegram.error import TelegramError
 
-from ..config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
 # Configure logging
 logger = logging.getLogger(__name__)

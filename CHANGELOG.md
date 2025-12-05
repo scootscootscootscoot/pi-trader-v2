@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v/1.0.
 
 ## [Unreleased]
 
+### Changed
+
+- **Scheduling Strategy**: Switched from 1-minute interval scheduling with market hour checks to precise cron-based scheduling during market hours (9:30 AM - 4:00 PM ET, weekdays) every 5 minutes to prevent execution overlaps and reduce unnecessary off-hours processing
+
 ## [2.1.0] - 2025-12-04
 
 ### Added
