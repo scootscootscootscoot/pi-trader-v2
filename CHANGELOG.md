@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v/1.0.
 
 ## [Unreleased]
 
+### Added
+
+- **Enhanced Telegram Bot Integration**: Completed Telegram bot functionality with start/stop notifications, remote kill command framework, and comprehensive error handling
+- **Telegram Bot Notifications**: Automatic messaging when trading bot starts and stops running
+- **Kill Command System**: Framework for remote shutdown via Telegram `/kill` command (polling temporarily disabled due to conflict resolution)
+- **Robust Error Handling**: Added conflict detection and graceful error management for Telegram polling issues
+
 ### Changed
 
 - **Scheduling Strategy**: Switched from 1-minute interval scheduling with market hour checks to precise cron-based scheduling during market hours (9:30 AM - 4:00 PM ET, weekdays) every 5 minutes to prevent execution overlaps and reduce unnecessary off-hours processing
+- **Telegram Reporter**: Enhanced with Application-based architecture for bidirectional communication and improved async operation management
 
 ## [2.1.0] - 2025-12-04
 
