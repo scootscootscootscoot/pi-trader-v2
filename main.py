@@ -46,7 +46,7 @@ class IntegratedTradingBot:
         self.orchestrator = None
 
         # Rate limiting for trading cycles
-        self.cycle_interval_minutes = 5  # Run trading cycle every 5 minutes during market hours
+        self.cycle_interval_minutes = 120  # Run trading cycle every 2 hours during market hours
         self.last_cycle_time = None
 
         # Health monitoring
@@ -80,6 +80,7 @@ class IntegratedTradingBot:
 
             # Initialize Telegram reporter
             self.telegram_reporter = TelegramReporter()
+            await self.telegram_reporter.start_bot()
             logger.info("Telegram reporter initialized")
 
             # Initialize orchestrator
@@ -96,6 +97,11 @@ class IntegratedTradingBot:
             logger.error(error_msg)
             await self._report_error(error_msg)
             return False
+
+    @property
+    def kill_requested(self):
+        """Check if kill command was received via Telegram."""
+        return self.telegram_reporter.kill_requested if self.telegram_reporter else False
 
     def _execute_trading_cycle_sync(self):
         """Synchronous wrapper for the async trading cycle method."""
@@ -221,33 +227,35 @@ class IntegratedTradingBot:
                 await self._report_error(f"Data fetch error: {e}")
                 return
 
-            # 2. Generate AI analysis for each symbol
+            # 2. Generate AI analysis for symbols in batches
             ai_signals = []
-            for symbol in TRADING_SYMBOLS:
+            batch_size = 10  # Process 10 symbols per AI call for efficiency
+            symbols_to_analyze = [s for s in TRADING_SYMBOLS if s in market_data and not market_data[s].empty]
+
+            logger.info(f"Analyzing {len(symbols_to_analyze)} symbols in batches of {batch_size}")
+
+            for i in range(0, len(symbols_to_analyze), batch_size):
+                batch = symbols_to_analyze[i:i + batch_size]
                 try:
-                    if symbol not in market_data or market_data[symbol].empty:
-                        logger.warning(f"No data available for {symbol}, skipping")
-                        continue
+                    # Build prompt for this batch of symbols
+                    batch_data = {symbol: market_data[symbol] for symbol in batch}
+                    messages = self.prompt_builder.build_prompt_messages(batch_data)
 
-                    # Build prompt for this symbol
-                    single_symbol_data = {symbol: market_data[symbol]}
-                    messages = self.prompt_builder.build_prompt_messages(single_symbol_data)
-
-                    # Get AI analysis
+                    # Get AI analysis for the batch
                     ai_response = self.ai_client.call_chat_completion(messages)
 
                     if ai_response and 'choices' in ai_response:
                         response_text = ai_response['choices'][0]['message']['content']
-                        logger.info(f"AI analysis for {symbol}: {response_text[:100]}...")
+                        logger.info(f"AI analysis for batch {i//batch_size + 1}: {batch} - {response_text[:100]}...")
 
                         # Parse signals from AI response
                         signals = self.strategy.parse_ai_response(response_text)
                         ai_signals.extend(signals)
                     else:
-                        logger.warning(f"No valid AI response for {symbol}")
+                        logger.warning(f"No valid AI response for batch: {batch}")
 
                 except Exception as e:
-                    logger.error(f"AI analysis failed for {symbol}: {e}")
+                    logger.error(f"AI analysis failed for batch {i//batch_size + 1}: {batch} - {e}")
                     continue
 
             if not ai_signals:
@@ -314,12 +322,21 @@ async def main():
             logger.error("Failed to initialize trading bot")
             return
 
+        # Send start message
+        await bot.telegram_reporter.send_start_message()
+
         # Start the orchestrator (which will run the trading cycles)
         bot.orchestrator.start()
 
         # Keep the main thread alive
         while True:
             await asyncio.sleep(60)  # Check every minute
+
+            # Check for kill command
+            if bot.kill_requested:
+                logger.info("Kill command received, shutting down gracefully")
+                break
+
             # Could add additional monitoring here
 
     except KeyboardInterrupt:
@@ -328,6 +345,14 @@ async def main():
         logger.error(f"Unexpected error: {e}")
         await bot._report_error(f"Critical system error: {e}")
     finally:
+        # Send stop message and stop bot
+        try:
+            if bot.telegram_reporter:
+                await bot.telegram_reporter.send_stop_message()
+                await bot.telegram_reporter.stop_bot()
+        except Exception as e:
+            logger.error(f"Failed to send stop message or stop bot: {e}")
+
         if bot.orchestrator:
             bot.orchestrator.stop()
 

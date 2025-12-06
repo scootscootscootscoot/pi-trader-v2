@@ -54,32 +54,21 @@ class TradingOrchestrator:
             return
 
         try:
-            # Add scheduled jobs for market hours (9:30 AM - 4:00 PM ET, weekdays, every 5 minutes)
-            # Morning session: 9:30 to 9:55
+            # Add scheduled jobs for market hours (9:30 AM - 4:00 PM ET, weekdays, every 2 hours)
+            # Trading cycles at 10:00, 12:00, 14:00 (every 2 hours during market hours)
             self.scheduler.add_job(
                 func=self._execute_trading_cycle,
                 trigger="cron",
                 day_of_week='mon-fri',
-                hour=9,
-                minute='30,35,40,45,50,55',
-                id="trading_cycle_morning",
-                name="Trading Cycle Execution - Morning"
-            )
-
-            # Afternoon session: 10:00 to 15:55 (every 5 minutes)
-            self.scheduler.add_job(
-                func=self._execute_trading_cycle,
-                trigger="cron",
-                day_of_week='mon-fri',
-                hour='10-15',
-                minute='*/5',
-                id="trading_cycle_afternoon",
-                name="Trading Cycle Execution - Afternoon"
+                hour='10,12,14',
+                minute=0,
+                id="trading_cycle_scheduled",
+                name="Trading Cycle Execution - Scheduled"
             )
 
             self.scheduler.start()
             self.running = True
-            logger.info("Trading orchestrator started successfully: scheduling during market hours only (every 5 minutes)")
+            logger.info("Trading orchestrator started successfully: scheduling during market hours only (every 2 hours)")
 
         except Exception as e:
             logger.error(f"Failed to start orchestrator: {e}")
