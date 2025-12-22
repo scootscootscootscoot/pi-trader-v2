@@ -68,8 +68,19 @@ Please analyze the current market data and provide:
 3. RISK MANAGEMENT recommendations
 4. CONFIDENCE LEVEL (0-100) for each signal
 
-Format your response as:
-SYMBOL: [SIGNAL] at $[PRICE] - Confidence: X% - Reason: [brief explanation]"""
+Format your response EXACTLY as a numbered list:
+
+1. **SYMBOL: [LONG/SHORT]** at $PRICE - Confidence: X% - Reason: [brief explanation]
+2. **SYMBOL: [LONG/SHORT]** at $PRICE - Confidence: X% - Reason: [brief explanation]
+
+Where:
+- SYMBOL is the stock ticker (e.g., TSLA, AAPL)
+- [LONG/SHORT] indicates buy or sell signal
+- PRICE is the exact entry price
+- X is confidence level (0-100)
+- [brief explanation] is a short reason for the signal
+
+Only include signals with confidence >= 70%. Do not include analysis text before the numbered list."""
 
     def _conservative_swing_template(self) -> str:
         """Template for conservative swing trading strategy."""

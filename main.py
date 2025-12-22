@@ -246,10 +246,12 @@ class IntegratedTradingBot:
 
                     if ai_response and 'choices' in ai_response:
                         response_text = ai_response['choices'][0]['message']['content']
-                        logger.info(f"AI analysis for batch {i//batch_size + 1}: {batch} - {response_text[:100]}...")
+                        logger.info(f"AI analysis for batch {i//batch_size + 1}: {batch}")
+                        logger.debug(f"Full AI response: {response_text}")
 
                         # Parse signals from AI response
                         signals = self.strategy.parse_ai_response(response_text)
+                        logger.info(f"Parsed {len(signals)} signals from AI response")
                         ai_signals.extend(signals)
                     else:
                         logger.warning(f"No valid AI response for batch: {batch}")

@@ -79,8 +79,10 @@ class BaseStrategy(ABC):
         """
         Parse AI response string into TradeSignal objects.
 
-        Assumes AI responses follow the format defined in prompt_builder templates:
-        "SYMBOL: [SIGNAL] at $[PRICE] - Confidence: X% - Reason: [explanation]"
+        Handles multiple formats:
+        1. Expected: "SYMBOL: [SIGNAL] at $[PRICE] - Confidence: X% - Reason: [explanation]"
+        2. AI actual: "1. **TSLA: [LONG]** at $496.10 - Confidence: X% - Reason: [explanation]"
+        3. Fallback numbered list with markdown
 
         Args:
             response: Raw AI response text
@@ -91,30 +93,93 @@ class BaseStrategy(ABC):
         signals = []
         lines = response.strip().split('\n')
 
-        # Regex pattern to match signal format
-        pattern = r'SYMBOL:\s*([A-Z]+):\s*\[([^\]]+)\]\s*at\s*\$\s*([0-9.]+)\s*-\s*Confidence:\s*(\d+)%\s*-\s*Reason:\s*(.+)'
+        # Action mapping from AI responses to standard actions
+        action_map = {
+            'long': 'buy',
+            'short': 'sell',
+            'buy': 'buy',
+            'sell': 'sell',
+            'hold': 'hold'
+        }
+
+        # Try multiple patterns to handle different AI response formats
+        patterns = [
+            # Pattern 1: Expected format "SYMBOL: [SIGNAL] at $[PRICE] - Confidence: X% - Reason: [explanation]"
+            r'SYMBOL:\s*([A-Z]+):\s*\[([^\]]+)\]\s*at\s*\$\s*([0-9.]+)\s*-\s*Confidence:\s*(\d+)%\s*-\s*Reason:\s*(.+)',
+
+            # Pattern 2: Numbered markdown format "1. **SYMBOL: [ACTION]** at $PRICE - Confidence: X% - Reason: [explanation]"
+            r'\d+\.\s*\*\*([A-Z]+):\s*\[([^\]]+)\]\*\*\s*at\s*\$\s*([0-9.]+)\s*-\s*Confidence:\s*(\d+)%\s*-\s*Reason:\s*(.+)',
+
+            # Pattern 3: Simpler format without confidence "SYMBOL: [ACTION] at $PRICE"
+            r'\d+\.\s*\*\*([A-Z]+):\s*\[([^\]]+)\]\*\*\s*at\s*\$\s*([0-9.]+)',
+
+            # Pattern 4: Fallback for any SYMBOL: [ACTION] pattern
+            r'([A-Z]+):\s*\[([^\]]+)\]',
+        ]
 
         for line in lines:
             line = line.strip()
             if not line:
                 continue
 
-            match = re.search(pattern, line, re.IGNORECASE)
-            if match:
-                symbol, action, price_str, confidence_str, reason = match.groups()
-                try:
-                    signal = TradeSignal(
-                        symbol=symbol.upper(),
-                        action=action.lower(),
-                        price=float(price_str),
-                        confidence=int(confidence_str),
-                        reason=reason.strip()
-                    )
-                    signals.append(signal)
-                    logger.debug(f"Parsed signal: {signal}")
-                except (ValueError, TypeError) as e:
-                    logger.warning(f"Failed to parse signal from line '{line}': {e}")
-            else:
+            parsed = False
+            for pattern in patterns:
+                match = re.search(pattern, line, re.IGNORECASE)
+                if match:
+                    groups = match.groups()
+                    try:
+                        if len(groups) >= 2:
+                            symbol = groups[0].upper()
+                            action_raw = groups[1].lower()
+                            action = action_map.get(action_raw, action_raw)
+
+                            price = None
+                            confidence = 50  # Default confidence
+                            reason = f"AI signal: {action_raw}"
+
+                            if len(groups) >= 3:
+                                try:
+                                    price = float(groups[2])
+                                except (ValueError, TypeError):
+                                    price = None
+
+                            if len(groups) >= 4:
+                                try:
+                                    confidence = int(groups[3])
+                                except (ValueError, TypeError):
+                                    confidence = 50
+
+                            if len(groups) >= 5:
+                                reason = groups[4].strip()
+
+                            if price is None:
+                                # Try to extract price from the line if not in groups
+                                price_match = re.search(r'at\s*\$\s*([0-9.]+)', line, re.IGNORECASE)
+                                if price_match:
+                                    try:
+                                        price = float(price_match.group(1))
+                                    except (ValueError, TypeError):
+                                        price = 100.0  # Fallback
+
+                            if price is None:
+                                price = 100.0  # Final fallback
+
+                            signal = TradeSignal(
+                                symbol=symbol,
+                                action=action,
+                                price=price,
+                                confidence=confidence,
+                                reason=reason
+                            )
+                            signals.append(signal)
+                            logger.debug(f"Parsed signal: {signal}")
+                            parsed = True
+                            break
+                    except (ValueError, TypeError, IndexError) as e:
+                        logger.warning(f"Failed to parse signal from line '{line}' with pattern {pattern}: {e}")
+                        continue
+
+            if not parsed:
                 logger.debug(f"No signal pattern match in line: '{line}'")
 
         return signals
