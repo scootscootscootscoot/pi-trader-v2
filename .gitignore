@@ -108,3 +108,6 @@ dmypy.json
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Trading logs
+logs/

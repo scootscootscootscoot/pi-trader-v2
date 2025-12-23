@@ -12,6 +12,8 @@ import signal
 import sys
 from datetime import datetime
 import pytz
+import os
+import json
 
 from config.settings import TRADING_SYMBOLS
 from core.orchestrator import TradingOrchestrator
@@ -20,6 +22,7 @@ from data.yahoo_finance import YahooFinanceDataFetcher
 from ai import OpenRouterClient, PromptBuilder
 from strategy.base_strategy import SimpleAggressiveStrategy
 from reporting.telegram_bot import TelegramReporter, report_error, report_daily_summary
+from reporting.trade_logger import get_trade_logger
 
 # Configure logging
 logging.basicConfig(
@@ -252,6 +255,23 @@ class IntegratedTradingBot:
                         # Parse signals from AI response
                         signals = self.strategy.parse_ai_response(response_text)
                         logger.info(f"Parsed {len(signals)} signals from AI response")
+
+                        # Log signal generation
+                        trade_logger = get_trade_logger()
+                        for signal in signals:
+                            signal_dict = {
+                                'symbol': signal.symbol,
+                                'action': signal.action,
+                                'price': signal.price,
+                                'quantity': getattr(signal, 'quantity', None),
+                                'confidence': signal.confidence,
+                                'reason': signal.reason,
+                                'stop_loss': getattr(signal, 'stop_loss', None)
+                            }
+                            trade_logger.log_signal_generation(
+                                signal.symbol, signal_dict, response_text, signal.confidence
+                            )
+
                         ai_signals.extend(signals)
                     else:
                         logger.warning(f"No valid AI response for batch: {batch}")
@@ -275,6 +295,18 @@ class IntegratedTradingBot:
                         executed_signals.append(signal)
                         logger.info(f"Executed signal: {signal}")
                     else:
+                        # Log rejected signal
+                        trade_logger = get_trade_logger()
+                        signal_dict = {
+                            'symbol': signal.symbol,
+                            'action': signal.action,
+                            'price': signal.price,
+                            'quantity': getattr(signal, 'quantity', None),
+                            'confidence': signal.confidence,
+                            'reason': signal.reason,
+                            'stop_loss': getattr(signal, 'stop_loss', None)
+                        }
+                        trade_logger.log_signal_rejection(signal_dict, "Risk management rejection")
                         logger.info(f"Signal rejected based on risk management: {signal}")
                 except Exception as e:
                     logger.error(f"Failed to execute signal {signal}: {e}")
@@ -347,6 +379,16 @@ async def main():
         logger.error(f"Unexpected error: {e}")
         await bot._report_error(f"Critical system error: {e}")
     finally:
+        # Generate daily summary before shutdown
+        try:
+            if bot.trading_client:
+                account = bot.trading_client.get_account()
+                equity = account.get('equity', 0)
+                trade_logger = get_trade_logger()
+                trade_logger.log_daily_summary(equity, starting_equity=100000.0)  # Assuming $100k starting equity
+        except Exception as e:
+            logger.error(f"Failed to generate daily summary: {e}")
+
         # Send stop message and stop bot
         try:
             if bot.telegram_reporter:

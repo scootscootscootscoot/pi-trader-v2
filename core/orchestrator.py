@@ -66,6 +66,16 @@ class TradingOrchestrator:
                 name="Trading Cycle Execution - Scheduled"
             )
 
+            # TEMPORARY: Add immediate job for testing
+            from datetime import datetime
+            self.scheduler.add_job(
+                func=self._execute_trading_cycle,
+                trigger="date",
+                run_date=datetime.now(),
+                id="trading_cycle_test",
+                name="Trading Cycle Test - Immediate"
+            )
+
             self.scheduler.start()
             self.running = True
             logger.info("Trading orchestrator started successfully: scheduling during market hours only (every 2 hours)")

@@ -11,6 +11,8 @@ from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 import re
 
+from reporting.trade_logger import get_trade_logger
+
 logger = logging.getLogger(__name__)
 
 
@@ -328,25 +330,43 @@ class BaseStrategy(ABC):
             logger.warning(f"Invalid quantity calculated for buy signal: {signal}")
             return False
 
-        # Place limit order at signal price
-        order_id = self.trading_client.place_limit_order(
-            symbol=signal.symbol,
-            qty=signal.quantity,
-            limit_price=signal.price,
-            side='buy'
-        )
-
-        # Place corresponding stop loss order if needed
-        if signal.stop_loss:
-            self.trading_client.place_stop_order(
+        try:
+            # Place limit order at signal price
+            order_id = self.trading_client.place_limit_order(
                 symbol=signal.symbol,
                 qty=signal.quantity,
-                stop_price=signal.stop_loss,
-                side='sell'
+                limit_price=signal.price,
+                side='buy'
             )
 
-        logger.info(f"Executed buy signal for {signal.quantity} {signal.symbol} at ${signal.price}")
-        return True
+            # Place corresponding stop loss order if needed
+            if signal.stop_loss:
+                self.trading_client.place_stop_order(
+                    symbol=signal.symbol,
+                    qty=signal.quantity,
+                    stop_price=signal.stop_loss,
+                    side='sell'
+                )
+
+            # Log the executed trade
+            trade_logger = get_trade_logger()
+            signal_dict = {
+                'symbol': signal.symbol,
+                'action': signal.action,
+                'price': signal.price,
+                'quantity': signal.quantity,
+                'confidence': signal.confidence,
+                'reason': signal.reason,
+                'stop_loss': signal.stop_loss
+            }
+            trade_logger.log_signal_execution(signal_dict, order_id)
+
+            logger.info(f"Executed buy signal for {signal.quantity} {signal.symbol} at ${signal.price}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to execute buy signal: {e}")
+            return False
 
     def _execute_sell_signal(self, signal: TradeSignal) -> bool:
         """Execute a sell signal."""
@@ -365,15 +385,33 @@ class BaseStrategy(ABC):
             logger.warning(f"No position found for sell signal {signal}")
             return False
 
-        # Place market sell order
-        order_id = self.trading_client.place_market_order(
-            symbol=signal.symbol,
-            qty=position_qty,
-            side='sell'
-        )
+        try:
+            # Place market sell order
+            order_id = self.trading_client.place_market_order(
+                symbol=signal.symbol,
+                qty=position_qty,
+                side='sell'
+            )
 
-        logger.info(f"Executed sell signal for {position_qty} {signal.symbol}")
-        return True
+            # Log the executed trade
+            trade_logger = get_trade_logger()
+            signal_dict = {
+                'symbol': signal.symbol,
+                'action': signal.action,
+                'price': signal.price,
+                'quantity': position_qty,  # Use actual position quantity
+                'confidence': signal.confidence,
+                'reason': signal.reason,
+                'stop_loss': signal.stop_loss
+            }
+            trade_logger.log_signal_execution(signal_dict, order_id)
+
+            logger.info(f"Executed sell signal for {position_qty} {signal.symbol}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to execute sell signal: {e}")
+            return False
 
     def execute_signals(self, signals: List[TradeSignal]) -> List[bool]:
         """
