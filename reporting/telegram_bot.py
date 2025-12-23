@@ -40,17 +40,34 @@ class TelegramReporter:
             bool: True if sent successfully, False otherwise
         """
         try:
+            # Check if the event loop is still running
+            try:
+                loop = asyncio.get_running_loop()
+                if loop.is_closed():
+                    logger.error("Cannot send daily summary: event loop is closed")
+                    return False
+            except RuntimeError:
+                # No running event loop
+                logger.error("Cannot send daily summary: no running event loop")
+                return False
+
             # Format the summary message
             trade_count = len(trades)
             insights_formatted = insights[:4000]  # Limit message length
 
-            message = f"� **Daily Trading Summary**\n\n💰 P&L: ${pnl:.2f}\n📈 Trades: {trade_count}\n\n🔍 **Insights:**\n{insights_formatted}"
+            message = f"📊 **Daily Trading Summary**\n\n💰 P&L: ${pnl:.2f}\n📈 Trades: {trade_count}\n\n🔍 **Insights:**\n{insights_formatted}"
 
             await self.bot.send_message(chat_id=self.chat_id, text=message, parse_mode='Markdown')
             logger.info("Daily summary sent to Telegram")
             return True
         except TelegramError as e:
             logger.error(f"Failed to send daily summary: {e}")
+            return False
+        except RuntimeError as e:
+            if "Event loop is closed" in str(e):
+                logger.error(f"Cannot send daily summary: event loop is closed - {e}")
+            else:
+                logger.error(f"Runtime error sending daily summary: {e}")
             return False
         except Exception as e:
             logger.error(f"Unexpected error sending daily summary: {e}")
@@ -67,12 +84,29 @@ class TelegramReporter:
             bool: True if sent successfully, False otherwise
         """
         try:
+            # Check if the event loop is still running
+            try:
+                loop = asyncio.get_running_loop()
+                if loop.is_closed():
+                    logger.error("Cannot send error alert: event loop is closed")
+                    return False
+            except RuntimeError:
+                # No running event loop
+                logger.error("Cannot send error alert: no running event loop")
+                return False
+
             message = f"🚨 **Error Alert**\n\n{error_message}"
             await self.bot.send_message(chat_id=self.chat_id, text=message)
             logger.warning(f"Error alert sent to Telegram: {error_message}")
             return True
         except TelegramError as e:
             logger.error(f"Failed to send error alert: {e}")
+            return False
+        except RuntimeError as e:
+            if "Event loop is closed" in str(e):
+                logger.error(f"Cannot send error alert: event loop is closed - {e}")
+            else:
+                logger.error(f"Runtime error sending error alert: {e}")
             return False
         except Exception as e:
             logger.error(f"Unexpected error sending error alert: {e}")
@@ -86,12 +120,29 @@ class TelegramReporter:
             bool: True if sent successfully, False otherwise
         """
         try:
+            # Check if the event loop is still running
+            try:
+                loop = asyncio.get_running_loop()
+                if loop.is_closed():
+                    logger.error("Cannot send start message: event loop is closed")
+                    return False
+            except RuntimeError:
+                # No running event loop
+                logger.error("Cannot send start message: no running event loop")
+                return False
+
             message = "🤖 **Trading Bot Started**\n\nBot is now active and monitoring markets."
             await self.bot.send_message(chat_id=self.chat_id, text=message)
             logger.info("Start message sent to Telegram")
             return True
         except TelegramError as e:
             logger.error(f"Failed to send start message: {e}")
+            return False
+        except RuntimeError as e:
+            if "Event loop is closed" in str(e):
+                logger.error(f"Cannot send start message: event loop is closed - {e}")
+            else:
+                logger.error(f"Runtime error sending start message: {e}")
             return False
         except Exception as e:
             logger.error(f"Unexpected error sending start message: {e}")
@@ -105,12 +156,29 @@ class TelegramReporter:
             bool: True if sent successfully, False otherwise
         """
         try:
+            # Check if the event loop is still running
+            try:
+                loop = asyncio.get_running_loop()
+                if loop.is_closed():
+                    logger.error("Cannot send stop message: event loop is closed")
+                    return False
+            except RuntimeError:
+                # No running event loop
+                logger.error("Cannot send stop message: no running event loop")
+                return False
+
             message = "🛑 **Trading Bot Stopped**\n\nBot has been shutdown."
             await self.bot.send_message(chat_id=self.chat_id, text=message)
             logger.info("Stop message sent to Telegram")
             return True
         except TelegramError as e:
             logger.error(f"Failed to send stop message: {e}")
+            return False
+        except RuntimeError as e:
+            if "Event loop is closed" in str(e):
+                logger.error(f"Cannot send stop message: event loop is closed - {e}")
+            else:
+                logger.error(f"Runtime error sending stop message: {e}")
             return False
         except Exception as e:
             logger.error(f"Unexpected error sending stop message: {e}")
